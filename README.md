@@ -41,80 +41,128 @@ DELETE /students/{id} → Delete student
 ##PROGRAM CODE
 
 ### pom.xml
+```
 <dependencies>
-    <!-- Spring Boot Web -->
-    <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-web</artifactId>
-    </dependency>
+		<!-- Web Starter -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
 
-    <!-- Spring Boot JPA -->
-    <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-data-jpa</artifactId>
-    </dependency>
+		<!-- JPA (Hibernate) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
+		</dependency>
 
-    <!-- H2 Database (In-memory) -->
-    <dependency>
-        <groupId>com.h2database</groupId>
-        <artifactId>h2</artifactId>
-        <scope>runtime</scope>
-    </dependency>
-</dependencies>
+		<!-- MySQL Connector -->
+		<dependency>
+			<groupId>com.mysql</groupId>
+			<artifactId>mysql-connector-j</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
+		<!-- DevTools (optional) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+	</dependencies>
+```
  ### application.properties
+ ```
 
-spring.datasource.url=jdbc:h2:mem:testdb
-spring.datasource.driverClassName=org.h2.Driver
-spring.datasource.username=sa
-spring.datasource.password=
+spring.application.name=StudentCRUD
+# MySQL Configuration
+spring.datasource.url=jdbc:mysql://localhost:3306/studentdb
+spring.datasource.username=root
+spring.datasource.password=Root
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+
+# JPA / Hibernate
 spring.jpa.hibernate.ddl-auto=update
-spring.h2.console.enabled=true
-### Student.java
-package com.example.demo.model;
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQL8Dialect
+
+```
+### StudentEntity.java
+```
+package com.example.StudentCRUD.Model;
+
 import jakarta.persistence.*;
+
 @Entity
-public class Student {
+public class StudentEntity {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
     private String name;
     private String department;
     private int age;
-    // Getters and Setters
-    public Long getId() { return id; }
 
-    public void setId(Long id) { this.id = id; }
+    public Long getId() {
+        return id;
+    }
 
-    public String getName() { return name; }
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-    public void setName(String name) { this.name = name; }
+    public String getName() {
+        return name;
+    }
 
-    public String getDepartment() { return department; }
+    public void setName(String name) {
+        this.name = name;
+    }
 
-    public void setDepartment(String department) { this.department = department; }
+    public String getDepartment() {
+        return department;
+    }
 
-    public int getAge() { return age; }
+    public void setDepartment(String department) {
+        this.department = department;
+    }
 
-    public void setAge(int age) { this.age = age; }
+    public int getAge() {
+        return age;
+    }
+
+    public void setAge(int age) {
+        this.age = age;
+    }
 }
+ public void setAge(int age) { this.age = age; }
+}
+```
 ### StudentRepository.java
-package com.example.demo.repository;
+```
+package com.example.StudentCRUD.repository;
 
-import com.example.demo.model.Student;
+
+
+import com.example.StudentCRUD.Model.StudentEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface StudentRepository extends JpaRepository<Student, Long> {
+public interface StudentRepository extends JpaRepository<StudentEntity, Long> {
 }
-### StudentController.java
-package com.example.demo.controller;
+```
 
-import com.example.demo.model.Student;
-import com.example.demo.repository.StudentRepository;
+### StudentController.java
+```
+package com.example.StudentCRUD.controller;
+
+import com.example.StudentCRUD.Model.StudentEntity;
+import com.example.StudentCRUD.repository.StudentRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @RestController
 @RequestMapping("/students")
@@ -123,45 +171,79 @@ public class StudentController {
     @Autowired
     private StudentRepository studentRepository;
 
+    // Create
     @PostMapping
-    public Student addStudent(@RequestBody Student student) {
-        return studentRepository.save(student);
+    public ResponseEntity<?> addStudent(@RequestBody StudentEntity student) {
+        try {
+            StudentEntity saved = studentRepository.save(student);
+            return ResponseEntity.ok("Student created with ID: " + saved.getId());
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Failed to create student.");
+        }
     }
 
+    // Read All
     @GetMapping
-    public List<Student> getAllStudents() {
-        return studentRepository.findAll();
+    public ResponseEntity<?> getAllStudents() {
+        List<StudentEntity> list = studentRepository.findAll();
+        if (list.isEmpty()) {
+            return ResponseEntity.status(404).body("No students found.");
+        }
+        return ResponseEntity.ok(list);
     }
 
     @GetMapping("/{id}")
-    public Optional<Student> getStudent(@PathVariable Long id) {
-        return studentRepository.findById(id);
+    public ResponseEntity<?> getStudent(@PathVariable Long id) {
+        Optional<StudentEntity> student = studentRepository.findById(id);
+        return student.<ResponseEntity<?>>map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Student not found with ID: " + id));
     }
 
+    // Update
     @PutMapping("/{id}")
-    public Student updateStudent(@PathVariable Long id, @RequestBody Student studentDetails) {
-        Student student = studentRepository.findById(id).orElseThrow();
-        student.setName(studentDetails.getName());
-        student.setAge(studentDetails.getAge());
-        student.setDepartment(studentDetails.getDepartment());
-        return studentRepository.save(student);
+    public ResponseEntity<?> updateStudent(@PathVariable Long id, @RequestBody StudentEntity details) {
+        Optional<StudentEntity> optionalStudent = studentRepository.findById(id);
+        if (optionalStudent.isEmpty()) {
+            return ResponseEntity.status(404).body("Student not found with ID: " + id);
+        }
+
+        StudentEntity student = optionalStudent.get();
+        student.setName(details.getName());
+        student.setAge(details.getAge());
+        student.setDepartment(details.getDepartment());
+
+        studentRepository.save(student);
+        return ResponseEntity.ok("Student updated successfully.");
     }
 
+    // Delete
     @DeleteMapping("/{id}")
-    public String deleteStudent(@PathVariable Long id) {
+    public ResponseEntity<?> deleteStudent(@PathVariable Long id) {
+        if (!studentRepository.existsById(id)) {
+            return ResponseEntity.status(404).body("Student not found with ID: " + id);
+        }
+
         studentRepository.deleteById(id);
-        return "Student with ID " + id + " deleted successfully!";
+        return ResponseEntity.ok("Student with ID " + id + " deleted successfully.");
     }
 }
-### DemoApplication.java
-package com.example.demo;
+```
+### StudentCrudApplication.java
+```
+package com.example.StudentCRUD;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class DemoApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(DemoApplication.class, args);
-    }
+public class StudentCrudApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(StudentCrudApplication.class, args);
+	}
+
 }
+```
+# RESULT:
+Hence the Crud operations have been implemented successully
